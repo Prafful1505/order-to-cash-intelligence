@@ -1,0 +1,30 @@
+# Python
+backend/venv/
+backend/__pycache__/
+backend/app/**/__pycache__/
+backend/**/*.pyc
+backend/.env
+backend/data/erp.db
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Internal planning / AI tooling
+.claude/
+CLAUDE.md
+PLAN.md
+TASK_BRIEF.md
+PLAN_FRONTEND_REDESIGN.md
+Dodge AI - Hiring Task*/
+Forward Deployed Engineer @ Dodge AI/
+Dodge AI - Hiring Task*.md
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.log
