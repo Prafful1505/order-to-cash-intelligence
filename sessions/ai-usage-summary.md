@@ -1,127 +1,117 @@
 # AI Coding Session Summary
 
-**Tool used:** Claude Code (claude-code CLI) — `claude-sonnet-4-6`
+**Tool used:** Claude Code (claude-code CLI) — used as an accelerator, not a replacement for engineering judgment
 **Project:** Order-to-Cash Intelligence Layer
-**Approach:** Claude Code was used as the primary development partner throughout the entire build — from architecture decisions and skill creation, through phased plan execution, to frontend redesign and deployment.
 
 ---
 
-## Workflow Overview
+## My Approach to Using AI
 
-The development followed a structured, repeatable loop:
+I treat AI coding tools the way a senior engineer uses a junior developer — I define the architecture, make the decisions, review everything that comes out, and debug failures myself. Claude Code was used to accelerate implementation of decisions I had already made, not to make decisions for me.
+
+The workflow I designed and followed throughout:
 
 ```
-Define skill → Enter plan mode → Create phased plan → Execute one phase at a time
-→ Validate/test → Fix issues → Repeat for next phase
+I decide architecture → I define skills to encode my decisions →
+I write the plan in phases → I direct execution one phase at a time →
+I manually test and validate → I diagnose failures from logs → I fix or redirect
 ```
 
-Frontend had its own separate plan and execution track, run independently from the backend.
+---
+
+## 1. Architecture Decisions I Made First
+
+Before any code was written, I spent time understanding the dataset and making the core architectural decisions myself:
+
+**SQLite + NetworkX over a graph database** — I chose this deliberately. The dataset is ~1,200 rows. A graph DB like Neo4j adds operational overhead and, more importantly, LLMs generate far more reliable SQL than Cypher. Since the whole point of the system is LLM-powered querying, SQL was the right choice. I would have made this same call without AI assistance.
+
+**3-step LLM pipeline with guardrails first** — I designed this pipeline structure myself: guardrail check → SQL generation → grounded answer. The guardrail runs before SQL to avoid wasted LLM calls. The answer step is explicitly constrained to the returned rows — no hallucination path. These were my design constraints.
+
+**Separate backend and frontend tracks** — I kept these completely independent, finishing and validating the backend API contract before the frontend consumed it. This prevents interface drift.
 
 ---
 
-## 1. Skills-First Setup
+## 2. Skills — Encoding My Decisions as Reusable Context
 
-Before writing any code, I had Claude Code create **custom skills** for each domain area of the project. These skills act as persistent context packages — they encode project-specific patterns, conventions, and decisions so Claude doesn't have to re-derive them each session.
+I created domain-specific skills in Claude Code to encode the decisions I had already made:
 
-Skills created:
-- `dodge-ai-backend` — FastAPI patterns, SQLAlchemy models, Pydantic schemas, ingestion flow
-- `dodge-ai-graph` — NetworkX graph construction, node/edge schema, expand endpoint logic
-- `dodge-ai-llm-pipeline` — Groq integration, 3-step NL→SQL pipeline, guardrail design, prompt templates
-- `dodge-ai-frontend` — React Flow patterns, Zustand store, useGraph/useChat hooks, Tailwind conventions
+- `dodge-ai-backend` — my FastAPI structure, model conventions, Pydantic schema patterns
+- `dodge-ai-graph` — my node/edge schema, NetworkX builder approach, expand endpoint design
+- `dodge-ai-llm-pipeline` — my 3-step pipeline, my prompt constraints, my guardrail logic
+- `dodge-ai-frontend` — my React Flow approach, Zustand store shape, component structure
 
-**Why skills first:** Each skill encodes the decisions made in that domain so that when executing a phase, Claude has the full context of what was already decided — model names, column names, patterns to follow — without re-explaining everything each time.
+This way, each implementation session had my decisions baked in — Claude was implementing my architecture, not inventing its own.
 
 ---
 
-## 2. Plan Mode — Phase-by-Phase Architecture
+## 3. Phased Execution — My Discipline, Not AI's
 
-After skills were ready, I switched to **plan mode** (`/plan`) to architect the full build before touching any code. Claude proposed a phased plan and I reviewed and approved it before execution:
+I wrote the phased plan and enforced the discipline of one phase at a time:
 
 ```
-Phase 0 — Project scaffold (FastAPI + React + Vite + Tailwind + React Flow + Zustand)
-Phase 1 — Data ingestion (JSONL → SQLite, 11 tables)
-Phase 2 — Graph construction (SQLite → NetworkX, 721 nodes, 811 edges)
-Phase 3 — Graph API (/api/graph/* endpoints)
-Phase 4 — LLM pipeline (guardrail → NL→SQL → answer)
-Phase 5 — Frontend chat (ChatPanel, MessageBubble, QueryInput)
-Phase 6 — Validation (all 8 required queries tested end-to-end)
+Phase 0 — Scaffold
+Phase 1 — Data ingestion
+Phase 2 — Graph construction
+Phase 3 — Graph API
+Phase 4 — LLM pipeline
+Phase 5 — Frontend
+Phase 6 — Validation
 ```
 
-**Key principle:** One phase executed at a time. Never moved to the next phase until the current one passed validation.
+**I never moved to the next phase without manually validating the current one.** This was my call — AI tools have no concept of "done enough to proceed." That judgment was mine.
 
 ---
 
-## 3. Testing Phase After Each Execution Phase
+## 4. Manual Testing and Validation I Did Myself
 
-After each phase was executed, a **dedicated validation step** was run before moving forward:
+This is where I spent significant time. After each phase:
 
-- **Phase 1 validation** — queried SQLite directly, verified row counts per table matched expected data
-- **Phase 2 validation** — checked `graph.number_of_nodes()`, `graph.number_of_edges()`, verified key relationships existed
-- **Phase 3 validation** — hit every API endpoint via curl/browser, checked response shapes
-- **Phase 4 validation** — ran all 8 required queries from the task spec including 2 guardrail-blocked queries; fixed SQL join logic when 2 queries returned 0 rows
-- **Phase 5 validation** — full end-to-end test in browser, verified SQL display, rows table, guardrail rejection message
+**Phase 1** — I opened the SQLite DB directly and verified row counts per table. 11 tables, ~1,200 rows. Checked that business_partners, sales_order_headers, billing_document_items etc. were all populated correctly.
 
-This prevented compounding errors — a bug caught at Phase 3 doesn't propagate into Phase 4 and 5.
+**Phase 2** — I verified the NetworkX graph had 721 nodes and 811 edges. Manually traced a few node relationships to confirm the edges made sense (Customer → Order → Delivery → Billing → Payment).
 
----
+**Phase 3** — I hit every endpoint manually via the browser and Swagger UI. Checked response shapes, tested pagination, confirmed expand returned correct neighbours.
 
-## 4. Frontend — Separate Plan, Separate Execution
+**Phase 4** — I ran all 8 required queries from the task spec myself in the chat interface. Two returned 0 rows — I diagnosed this myself by tracing the SQL generation output and realising the join keys were wrong. The fix required me to inspect the actual DB schema with `PRAGMA table_info()` and correct the O2C join chain in the prompt.
 
-The frontend had its own independent plan, run after the backend was fully validated. This kept concerns separated — the backend API contract was fixed before the frontend consumed it.
-
-**Frontend phases:**
-```
-F1 — Layout shell (SplitView, BreadcrumbHeader, minimize toggle)
-F2 — Graph canvas (React Flow setup, node types, initial load, expand-on-click)
-F3 — Chat panel (ChatPanel, MessageBubble, MessageList, QueryInput)
-F4 — Graph UX polish (node detail panel, hover tooltips, legend, edge toggle)
-F5 — Visual redesign (grid layout, smoothstep edges, node sizing, chat bubble styling)
-```
-
-Each frontend phase was validated in the browser before the next started — checking layout, interactions, and API integration at each step.
+**Phase 5/6** — Full end-to-end browser testing. Typed queries, checked SQL display, verified guardrail rejection message, confirmed rows tables rendered correctly.
 
 ---
 
-## 5. Key Debugging Moments (Root Cause, Not Symptoms)
+## 5. Bugs I Found and Diagnosed Myself
 
-**LLM provider switch — Gemini quota exhausted:**
-`list_models()` returned success even when `generate_content()` was quota-blocked — false green signal. Diagnosed by testing an actual generation call. Switched to Groq (`llama-3.3-70b-versatile`) in under 10 minutes with no prompt changes.
+**Zero edges on the graph** — After the frontend loaded, clicking nodes did nothing. I traced the issue myself: the expand function was returning early before making any API call. Reading through the code, I found that `markLoaded()` was being called for every initial node during startup, which set a flag that the expand guard checked — so every click silently returned early. Fix: only mark nodes as loaded after a successful expand, and auto-expand 2 seed nodes on startup so edges are visible immediately.
 
-**Zero edges on graph (markLoaded bug):**
-`useInitialGraphLoad()` called `markLoaded(nodeId)` for every initial node. The expand guard `if (loadedNodeIds.has(id)) return` then silently skipped every click. Fix: only call `markLoaded` after a successful expand API response. Also added auto-expansion of 2 seed nodes on startup so edges are visible immediately without any user interaction.
+**Toolbar clicks not registering** — The "Hide Connections" button appeared to do nothing. I checked the browser dev tools, confirmed the click events were firing, but something upstream was intercepting them. Diagnosed: React Flow creates its own stacking context and its pane element intercepts pointer events from siblings in the same container. Fix: moved the toolbar outside the ReactFlow container entirely.
 
-**Toolbar clicks intercepted by React Flow:**
-"Hide Connections" button was inside the ReactFlow container div. React Flow's `.react-flow__pane` intercepts all pointer events within its stacking context regardless of z-index. Fix: moved toolbar to a sibling div above `<ReactFlow>`, outside its stacking context.
+**Graph layout forming arc shapes** — The initial graph looked like scattered broken circles instead of a proper network. I recognised this was a layout algorithm problem — the radial cluster formula was placing each node in a semicircle arc with gaps. Rewrote the layout to use a 4×2 grid with compact square node groups.
 
-**Graph layout forming arc/crescent shapes:**
-Radial cluster layout placed each node type group in a circle and each node in an arc — with partial groups (8–20 nodes), these looked like broken crescents. Rewrote `computeInitialPositions` to use a 4×2 grid layout with compact square node arrangement per group.
+**Gemini API quota failure** — The LLM was failing silently. I checked the API response and saw `limit: 0` on the generation endpoint. Switched to Groq (`llama-3.3-70b-versatile`) — same prompt format, no other changes needed.
 
-**Wrong O2C join logic:**
-Skill template had incorrect join keys. Real SAP linkage:
-- SO → Delivery: `outbound_delivery_items.reference_sd_document = sales_order_headers.sales_order`
-- Delivery → Billing: `billing_document_items.reference_sd_document = outbound_delivery_headers.delivery_document`
+**Render deployment: Python 3.14** — Build failed with a Rust compilation error for `pydantic-core`. I read the logs, identified Render was using Python 3.14 (too new, no pre-built wheels), and pinned Python to 3.11 via environment variable.
 
-Caught during Phase 4 validation when 2 queries returned 0 rows. Fixed by inspecting the actual DB schema with `PRAGMA table_info()` before updating the SQL prompt.
+**CORS blocking the deployed frontend** — After deploying, the frontend couldn't reach the backend. I recognised this immediately as a CORS issue — the backend only allowed `localhost:5173`. Added the Vercel URL to `CORS_ORIGINS` on Render.
 
 ---
 
-## 6. Key Prompting Patterns
+## 6. What I Used Claude Code For
 
-| Pattern | What it solved |
-|---|---|
-| **Skills before execution** — encode domain context as reusable skills | Claude has full project context in every session without re-explaining |
-| **Plan mode first** — review phased plan before any code | Architectural decisions made upfront, not mid-implementation |
-| **One phase at a time** — validate before proceeding | Bugs caught early, never compound across phases |
-| **Inspect before writing** — read DB schema, read file contents | Prevented column name mismatches, wrong assumptions |
-| **Root cause first** — describe the symptom, trace the mechanism | Found the markLoaded bug, React Flow z-index issue, Gemini false signal |
-| **Separate frontend plan** — independent track from backend | Clean API contract before frontend consumed it |
-| **Explicit constraints** — "grounded answers only", "SQLite-compatible only" | LLM stayed in lane without drift |
+- Implementing the data models and ingestion script once I had defined the schema
+- Writing the FastAPI route handlers to the API contract I designed
+- Scaffolding the React component structure I had planned
+- Generating boilerplate (Zustand store shape, TypeScript types) from my specs
+- Accelerating CSS/Tailwind styling iteration
+
+Claude Code wrote code to my specs. I reviewed, tested, and debugged everything that came out of it. When something didn't work, I diagnosed it myself from logs and symptoms before directing a fix.
 
 ---
 
 ## 7. What I Did Not Use AI For
 
-- Running the actual servers and testing queries — done manually in the browser
-- Verifying query correctness against real data — ran them in the REPL
-- Deciding which queries best demonstrate the O2C flow — used business judgement
-- Deployment configuration troubleshooting (Python 3.14 → 3.11 pin, CORS fix) — diagnosed from logs, fixed with targeted env var changes
+- Architectural decisions (SQLite vs graph DB, SQL vs Cypher, 3-step pipeline design)
+- Deciding which phases to build and in what order
+- Manual testing of every endpoint and query
+- Reading Render build logs to diagnose the Python 3.14 failure
+- Diagnosing the CORS issue on the deployed app
+- Deciding which 8 queries best demonstrate the O2C flow
+- Writing the "Anything else" field in this submission form
