@@ -114,4 +114,3 @@ Claude Code wrote code to my specs. I reviewed, tested, and debugged everything 
 - Reading Render build logs to diagnose the Python 3.14 failure
 - Diagnosing the CORS issue on the deployed app
 - Deciding which 8 queries best demonstrate the O2C flow
-- Writing the "Anything else" field in this submission form
