@@ -1,6 +1,7 @@
 import type { Message } from '../types/chat';
 
-const BASE = '/api/chat';
+const API_ROOT = import.meta.env.VITE_API_URL ?? '';
+const BASE = `${API_ROOT}/api/chat`;
 
 export interface QueryResponse {
   answer: string;

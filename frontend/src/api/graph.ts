@@ -1,7 +1,7 @@
 import type { GraphNode, ExpandResponse, NodeDetail, SchemaResponse } from '../types/graph';
 
-// Vite proxy forwards /api → http://localhost:8000
-const BASE = '/api/graph';
+const API_ROOT = import.meta.env.VITE_API_URL ?? '';
+const BASE = `${API_ROOT}/api/graph`;
 
 export async function fetchSchema(): Promise<SchemaResponse> {
   const res = await fetch(`${BASE}/schema`);
